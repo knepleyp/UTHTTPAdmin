@@ -584,6 +584,10 @@ Httpd* httpd_create ( unsigned short _port, HttpRequestHandler _handler, void* _
   {
     printf ("setsocketopt");
   }
+  
+  // non-blocking
+  u_long nonblock = 1;
+  ioctlsocket(server->socket, FIONBIO, &nonblock);
 
   struct sockaddr_in sa;
   sa.sin_port = htons(_port);

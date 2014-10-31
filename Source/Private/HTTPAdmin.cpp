@@ -30,6 +30,16 @@ void FHTTPAdmin::HTTPHandler(HttpResponse* Response)
 {
 	FString Location(httpresponse_location(Response));
 
-	FString Output = Location + "<br />Hello, world!";
-	httpresponse_response(Response, 220, TCHAR_TO_ANSI(*Output), 0, 0);
+	const char* ConsoleCommand = httpresponse_get_arg(Response, "consolecommand");
+	if (ConsoleCommand != nullptr)
+	{
+		FString ConsoleCommandString(ConsoleCommand);
+		GEngine->Exec(GWorld, *ConsoleCommandString);
+	}
+
+	FString FileData;
+	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") + *Location;
+	FFileHelper::LoadFileToString(FileData, *FilePath);
+
+	httpresponse_response(Response, 220, TCHAR_TO_ANSI(*FileData), 0, 0);
 }
