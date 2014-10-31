@@ -18,7 +18,7 @@ IMPLEMENT_MODULE(FHTTPAdminPlugin, HTTPAdmin)
 
 void FHTTPAdminPlugin::StartupModule()
 {
-	FHTTPAdmin* HTTPAdmin = new FHTTPAdmin;
+	UHTTPAdmin* HTTPAdmin = Cast<UHTTPAdmin>(StaticConstructObject(UHTTPAdmin::StaticClass()));
 	HTTPAdmin->Init();
 }
 

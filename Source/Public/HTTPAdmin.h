@@ -5,13 +5,12 @@
 #include "UnrealTournament.h"
 #include "httpd.h"
 
-class FHTTPAdmin : public FTickableGameObject
+#include "HTTPAdmin.generated.h"
+
+UCLASS(Config=HTTPAdmin)
+class UHTTPAdmin : public UObject, public FTickableGameObject
 {
-public:
-	FHTTPAdmin()
-	{
-		HTTPServer = nullptr;
-	}
+	GENERATED_UCLASS_BODY()
 
 	void Init();
 
@@ -30,6 +29,20 @@ public:
 	static void StaticHTTPHandler(HttpResponse* Response, void* UserData);
 
 	void HTTPHandler(HttpResponse* Response);
+
+	UPROPERTY(Config)
+	bool bRequireAuth;
+
+	UPROPERTY(Config)
+	FString User;
+
+	UPROPERTY(Config)
+	FString Password;
+
+	FString CombinedAuth;
+
+	UPROPERTY(Config)
+	int32 Port;
 
 private:
 	Httpd* HTTPServer;
