@@ -458,14 +458,27 @@ HTTPD_C_API bool httpresponse_response (HttpResponse* _context, unsigned int _co
   size_t contentLength = (0 == _contentLength && _content) ? strlen(_content) : _contentLength;
   const char* userHeader = _userHeader ? _userHeader : "Content-Type: text/html\r\n";
 
-  // send HTTP header
-  httpresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
-           "Server: dbalster/httpd\r\n"
-           "Cache-Control: no-cache\r\n"
-           "Content-Length: %d\r\n"
-           "%s"
-           "\r\n", _code, message, contentLength, userHeader);
-
+  if (_userHeader == nullptr)
+  {
+      // send HTTP header for html files, don't cache as most html will be dynamic
+      httpresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
+               "Server: UT/httpd\r\n"
+               "Cache-Control: no-cache\r\n"
+               "Content-Length: %d\r\n"
+               "%s"
+               "\r\n", _code, message, contentLength, userHeader);
+  }
+  else
+  {
+      // send HTTP header for non-html, cache for an hour as images, css, js, etc should not be dynamic
+      httpresponse_writef(_context, "HTTP/1.1 %03d %s\r\n"
+               "Server: UT/httpd\r\n"
+               "Cache-Control: max-age=3600\r\n"
+               "Content-Length: %d\r\n"
+               "%s"
+               "\r\n", _code, message, contentLength, userHeader);
+  }
+  
   // write the actual content (the "page")
   if (_content)
   {
