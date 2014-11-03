@@ -68,16 +68,14 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 		FString ConsoleCommandString(ConsoleCommand);
 		GEngine->Exec(GWorld, *ConsoleCommandString);
 	}
-	AUTGameMode* GameMode = Cast<AUTGameMode>(GWorld->GetAuthGameMode());
-
-	if (Location == FString(TEXT("/")))
-	{
-		Location = FString(TEXT("/admin.html"));
-	}
-
+	
 	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") + *Location;
 	const FString FileExtension = FPaths::GetExtension(Location);
-	if (FileExtension == TEXT("html") || FileExtension == TEXT("htm"))
+	if (FileExtension.IsEmpty() || Location == FString(TEXT("/admin.html")))
+	{
+		PrepareAdminPage(Response);
+	}
+	else if (FileExtension == TEXT("html") || FileExtension == TEXT("htm"))
 	{
 		FString FileData;
 		FFileHelper::LoadFileToString(FileData, *FilePath);
@@ -105,4 +103,44 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 
 		httpresponse_response(Response, 220, (const char*)FileData.GetData(), FileData.Num(), "Content-Type: image/png\r\n");
 	}
+}
+
+void UHTTPAdmin::PrepareAdminPage(HttpResponse* Response)
+{
+	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") / TEXT("admin.html");
+	FString FileData;
+	FFileHelper::LoadFileToString(FileData, *FilePath);
+
+	AUTGameMode* GameMode = Cast<AUTGameMode>(GWorld->GetAuthGameMode());
+
+	httpresponse_begin(Response, 220, nullptr);
+	httpresponse_writef(Response, "<html><head><script type=\"text/javascript\">");
+
+	if (GameMode != nullptr && GameMode->GameState != nullptr)
+	{
+		FString MapNameJS = TEXT("var mapname=\"") + GWorld->GetMapName() + TEXT("\";");
+		httpresponse_writef(Response, TCHAR_TO_ANSI(*MapNameJS));
+
+		FString TimeRemainingJS = TEXT("var timeremaining=\"") + FString::FromInt(GameMode->UTGameState->RemainingTime) + TEXT("\";");
+		httpresponse_writef(Response, TCHAR_TO_ANSI(*TimeRemainingJS));
+
+		FString PlayerJS = TEXT("var Players=[");
+		for (int i = 0; i < GameMode->GameState->PlayerArray.Num(); i++)
+		{
+			if (i != 0)
+			{
+				PlayerJS += TEXT(",");
+			}
+			AUTPlayerState *PS = Cast<AUTPlayerState>(GameMode->GameState->PlayerArray[i]);
+			if (PS != nullptr)
+			{
+				PlayerJS += TEXT("{name:\"") + PS->PlayerName + TEXT("\",score:") + FString::FromInt(PS->Score) + TEXT(",kills:") + FString::FromInt(PS->Kills) + +TEXT(",deaths:") + FString::FromInt(PS->Deaths) + TEXT("}");
+			}
+		}
+		PlayerJS += TEXT("];");
+		httpresponse_writef(Response, TCHAR_TO_ANSI(*PlayerJS));
+	}
+	httpresponse_writef(Response, "</script></head>");
+	httpresponse_writef(Response, TCHAR_TO_ANSI(*FileData));
+	httpresponse_end(Response);
 }

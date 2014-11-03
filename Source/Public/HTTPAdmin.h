@@ -29,6 +29,8 @@ class UHTTPAdmin : public UObject, public FTickableGameObject
 	static void StaticHTTPHandler(HttpResponse* Response, void* UserData);
 
 	void HTTPHandler(HttpResponse* Response);
+	
+	void PrepareAdminPage(HttpResponse* Response);
 
 	UPROPERTY(Config)
 	bool bRequireAuth;
