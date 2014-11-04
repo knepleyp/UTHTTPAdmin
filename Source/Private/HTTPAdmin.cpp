@@ -69,6 +69,18 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 		GEngine->Exec(GWorld, *ConsoleCommandString);
 	}
 	
+	const char* KickRequest = httpresponse_get_arg(Response, "kick");
+	if (KickRequest != nullptr)
+	{
+		// kick here
+	}
+
+	const char* BanRequest = httpresponse_get_arg(Response, "ban");
+	if (BanRequest != nullptr)
+	{
+		// ban here
+	}
+
 	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") + *Location;
 	const FString FileExtension = FPaths::GetExtension(Location);
 	if (FileExtension.IsEmpty() || Location == FString(TEXT("/admin.html")))
@@ -121,8 +133,23 @@ void UHTTPAdmin::PrepareAdminPage(HttpResponse* Response)
 		FString MapNameJS = TEXT("var mapname=\"") + GWorld->GetMapName() + TEXT("\";");
 		httpresponse_writef(Response, TCHAR_TO_ANSI(*MapNameJS));
 
+		FString MapRotationJS = TEXT("var maprotation=[");
+		for (int i = 0; i < GameMode->MapRotation.Num(); i++)
+		{
+			if (i != 0)
+			{
+				MapRotationJS += TEXT(",");
+			}
+			MapRotationJS += TEXT("\"") + GameMode->MapRotation[i] + TEXT("\"");
+		}
+		MapRotationJS += TEXT("];");
+		httpresponse_writef(Response, TCHAR_TO_ANSI(*MapRotationJS));
+
 		FString TimeRemainingJS = TEXT("var timeremaining=\"") + FString::FromInt(GameMode->UTGameState->RemainingTime) + TEXT("\";");
 		httpresponse_writef(Response, TCHAR_TO_ANSI(*TimeRemainingJS));
+
+		FString GoalScoreJS = TEXT("var goalscore=\"") + FString::FromInt(GameMode->UTGameState->GoalScore) + TEXT("\";");
+		httpresponse_writef(Response, TCHAR_TO_ANSI(*GoalScoreJS));
 
 		FString PlayerJS = TEXT("var Players=[");
 		for (int i = 0; i < GameMode->GameState->PlayerArray.Num(); i++)
