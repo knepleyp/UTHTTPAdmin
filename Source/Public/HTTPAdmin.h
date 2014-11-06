@@ -30,7 +30,7 @@ class UHTTPAdmin : public UObject, public FTickableGameObject
 
 	void HTTPHandler(HttpResponse* Response);
 	
-	void PrepareAdminPage(HttpResponse* Response);
+	void PrepareAdminJSON(HttpResponse* Response);
 
 	UPROPERTY(Config)
 	bool bRequireAuth;

@@ -81,18 +81,23 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 		// ban here
 	}
 
+	if (Location == FString("/"))
+	{
+		Location = FString(TEXT("/admin.html"));
+	}
+
 	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") + *Location;
 	const FString FileExtension = FPaths::GetExtension(Location);
-	if (FileExtension.IsEmpty() || Location == FString(TEXT("/admin.html")))
+	if (FileExtension == TEXT("json"))
 	{
-		PrepareAdminPage(Response);
+		PrepareAdminJSON(Response);
 	}
 	else if (FileExtension == TEXT("html") || FileExtension == TEXT("htm"))
 	{
 		FString FileData;
 		FFileHelper::LoadFileToString(FileData, *FilePath);
 
-		httpresponse_response(Response, 220, TCHAR_TO_ANSI(*FileData), 0, 0);
+		httpresponse_response(Response, 220, TCHAR_TO_ANSI(*FileData), 0, "Content-Type: text/html\r\n");
 	}
 	else if (FileExtension == TEXT("js"))
 	{
@@ -115,59 +120,58 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 
 		httpresponse_response(Response, 220, (const char*)FileData.GetData(), FileData.Num(), "Content-Type: image/png\r\n");
 	}
+	else
+	{
+		httpresponse_response(Response, 404, "Not Found", 0, nullptr);
+	}
 }
 
-void UHTTPAdmin::PrepareAdminPage(HttpResponse* Response)
+void UHTTPAdmin::PrepareAdminJSON(HttpResponse* Response)
 {
-	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") / TEXT("admin.html");
-	FString FileData;
-	FFileHelper::LoadFileToString(FileData, *FilePath);
-
 	AUTGameMode* GameMode = Cast<AUTGameMode>(GWorld->GetAuthGameMode());
 
-	httpresponse_begin(Response, 220, nullptr);
-	httpresponse_writef(Response, "<html><head><script type=\"text/javascript\">");
+	httpresponse_begin(Response, 220, "Content-Type: application/json\r\n");
+
+	FString JSON = TEXT("{");
 
 	if (GameMode != nullptr && GameMode->GameState != nullptr)
 	{
-		FString MapNameJS = TEXT("var mapname=\"") + GWorld->GetMapName() + TEXT("\";");
-		httpresponse_writef(Response, TCHAR_TO_ANSI(*MapNameJS));
+		JSON += TEXT("\"mapname\":\"") + GWorld->GetMapName() + TEXT("\",");
 
-		FString MapRotationJS = TEXT("var maprotation=[");
+		JSON += TEXT("\"maprotation\":[");
 		for (int i = 0; i < GameMode->MapRotation.Num(); i++)
 		{
 			if (i != 0)
 			{
-				MapRotationJS += TEXT(",");
+				JSON += TEXT(",");
 			}
-			MapRotationJS += TEXT("\"") + GameMode->MapRotation[i] + TEXT("\"");
+			JSON += TEXT("\"") + GameMode->MapRotation[i] + TEXT("\"");
 		}
-		MapRotationJS += TEXT("];");
-		httpresponse_writef(Response, TCHAR_TO_ANSI(*MapRotationJS));
+		JSON += TEXT("],");
 
-		FString TimeRemainingJS = TEXT("var timeremaining=\"") + FString::FromInt(GameMode->UTGameState->RemainingTime) + TEXT("\";");
-		httpresponse_writef(Response, TCHAR_TO_ANSI(*TimeRemainingJS));
 
-		FString GoalScoreJS = TEXT("var goalscore=\"") + FString::FromInt(GameMode->UTGameState->GoalScore) + TEXT("\";");
-		httpresponse_writef(Response, TCHAR_TO_ANSI(*GoalScoreJS));
+		JSON += TEXT("\"timeremaining\":") + FString::FromInt(GameMode->UTGameState->RemainingTime) + TEXT(",");
 
-		FString PlayerJS = TEXT("var Players=[");
+		JSON += TEXT("\"goalscore\":") + FString::FromInt(GameMode->UTGameState->GoalScore) + TEXT(",");
+
+		JSON += TEXT("\"Players\":[");
 		for (int i = 0; i < GameMode->GameState->PlayerArray.Num(); i++)
 		{
 			if (i != 0)
 			{
-				PlayerJS += TEXT(",");
+				JSON += TEXT(",");
 			}
 			AUTPlayerState *PS = Cast<AUTPlayerState>(GameMode->GameState->PlayerArray[i]);
 			if (PS != nullptr)
 			{
-				PlayerJS += TEXT("{name:\"") + PS->PlayerName + TEXT("\",score:") + FString::FromInt(PS->Score) + TEXT(",kills:") + FString::FromInt(PS->Kills) + +TEXT(",deaths:") + FString::FromInt(PS->Deaths) + TEXT("}");
+				JSON += TEXT("{\"name\":\"") + PS->PlayerName + TEXT("\",\"score\":") + FString::FromInt(PS->Score) + TEXT(",\"kills\":") + FString::FromInt(PS->Kills) + +TEXT(",\"deaths\":") + FString::FromInt(PS->Deaths) + TEXT("}");
 			}
 		}
-		PlayerJS += TEXT("];");
-		httpresponse_writef(Response, TCHAR_TO_ANSI(*PlayerJS));
+		JSON += TEXT("]");
 	}
-	httpresponse_writef(Response, "</script></head>");
-	httpresponse_writef(Response, TCHAR_TO_ANSI(*FileData));
+
+	JSON += TEXT("}");
+
+	httpresponse_writef(Response, TCHAR_TO_ANSI(*JSON));
 	httpresponse_end(Response);
 }
