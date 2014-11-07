@@ -3,7 +3,7 @@
 <body>
 <img src="utlogo.png">
 <h1>Admin Panel</h1>
-<form method="POST" action="admin.html">
+<form method="POST" action="index.html">
 <label for="consolecommand">Console command: </label>
 <input type="text" name="consolecommand" value="" />
 <input type="submit" />
@@ -24,7 +24,7 @@
 	var xmlhttp = new XMLHttpRequest();
 	xmlhttp.onreadystatechange = function()
 	{
-		if (xmlhttp.readyState == 4 && xmlhttp.status == 220)
+		if (xmlhttp.readyState == 4 && (xmlhttp.status == 220 || xmlhttp.status == 200))
 		{
 			serverinfo = JSON.parse(xmlhttp.responseText);
 			

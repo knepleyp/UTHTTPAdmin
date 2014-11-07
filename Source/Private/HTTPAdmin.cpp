@@ -5,7 +5,11 @@
 UHTTPAdmin::UHTTPAdmin(const FPostConstructInitializeProperties& PCIP)
 	: Super(PCIP)
 {
+#if USE_MONGOOSE
+	MGServer = nullptr;
+#else
 	HTTPServer = nullptr;
+#endif
 }
 
 void UHTTPAdmin::Init()
@@ -15,15 +19,37 @@ void UHTTPAdmin::Init()
 
 	CombinedAuth = User + TEXT(":") + Password;
 
+	if (Port == 0)
+	{
+		Port = 8080;
+	}
+
+#if USE_MONGOOSE
+	MGServer = mg_create_server(this, StaticMGHandler);
+	
+	FString PortStr = FString::FromInt(Port);
+	mg_set_option(MGServer, "listening_port", TCHAR_TO_ANSI(*PortStr));
+
+	FString DocumentRoot = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML");
+	mg_set_option(MGServer, "document_root", TCHAR_TO_ANSI(*DocumentRoot));
+#else
 	HTTPServer = httpd_create(Port, StaticHTTPHandler, this);
+#endif
 }
 
 void UHTTPAdmin::Tick(float DeltaTime)
 {
+#if USE_MONGOOSE
+	if (MGServer != nullptr)
+	{
+		mg_poll_server(MGServer, 1);
+	}
+#else
 	if (HTTPServer != nullptr)
 	{
 		httpd_process(HTTPServer, false);
 	}
+#endif
 }
 
 TStatId UHTTPAdmin::GetStatId() const
@@ -31,6 +57,44 @@ TStatId UHTTPAdmin::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UHTTPAdmin, STATGROUP_Tickables);
 }
 
+#if USE_MONGOOSE
+int UHTTPAdmin::StaticMGHandler(mg_connection* conn, enum mg_event ev)
+{
+	return ((UHTTPAdmin*)conn->server_param)->MGHandler(conn, ev);
+}
+
+int UHTTPAdmin::MGHandler(mg_connection* conn, enum mg_event ev)
+{
+	if (ev == MG_AUTH)
+	{
+		return MG_TRUE;
+	}
+	else if (ev == MG_REQUEST)
+	{
+		char argumentbuffer[256];
+		argumentbuffer[255] = 0;
+		if (mg_get_var(conn, "consolecommand", argumentbuffer, 255) > 0)
+		{
+			FString ConsoleCommandString(argumentbuffer);
+			GEngine->Exec(GWorld, *ConsoleCommandString);
+		}
+
+		FString URL(conn->uri);
+
+		const FString FileExtension = FPaths::GetExtension(URL);
+		if (FileExtension == FString(TEXT("json")))
+		{
+			FString JSON = PrepareAdminJSON();
+
+			mg_send_header(conn, "Content-Type", "application/json");
+			mg_send_data(conn, TCHAR_TO_ANSI(*JSON), JSON.Len());
+			return MG_TRUE;
+		}
+	}
+
+	return MG_FALSE;
+}
+#else
 void UHTTPAdmin::StaticHTTPHandler(HttpResponse* Response, void* UserData)
 {
 	UHTTPAdmin* HTTPAdmin = static_cast<UHTTPAdmin*>(UserData);
@@ -68,7 +132,7 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 		FString ConsoleCommandString(ConsoleCommand);
 		GEngine->Exec(GWorld, *ConsoleCommandString);
 	}
-	
+
 	const char* KickRequest = httpresponse_get_arg(Response, "kick");
 	if (KickRequest != nullptr)
 	{
@@ -83,42 +147,47 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 
 	if (Location == FString("/"))
 	{
-		Location = FString(TEXT("/admin.html"));
+		Location = FString(TEXT("/index.html"));
 	}
 
 	FString FilePath = FPaths::GamePluginsDir() / TEXT("HTTPAdmin") / TEXT("HTML") + *Location;
 	const FString FileExtension = FPaths::GetExtension(Location);
 	if (FileExtension == TEXT("json"))
 	{
-		PrepareAdminJSON(Response);
+		FString JSON = PrepareAdminJSON();
+
+		// Want to use this method so no-cache is set
+		httpresponse_begin(Response, 200, "Content-Type: application/json\r\n");
+		httpresponse_writef(Response, TCHAR_TO_ANSI(*JSON));
+		httpresponse_end(Response);
 	}
 	else if (FileExtension == TEXT("html") || FileExtension == TEXT("htm"))
 	{
 		FString FileData;
 		FFileHelper::LoadFileToString(FileData, *FilePath);
 
-		httpresponse_response(Response, 220, TCHAR_TO_ANSI(*FileData), 0, "Content-Type: text/html\r\n");
+		httpresponse_response(Response, 200, TCHAR_TO_ANSI(*FileData), 0, "Content-Type: text/html\r\n");
 	}
 	else if (FileExtension == TEXT("js"))
 	{
 		FString FileData;
 		FFileHelper::LoadFileToString(FileData, *FilePath);
 
-		httpresponse_response(Response, 220, TCHAR_TO_ANSI(*FileData), 0, "Content-Type: application/javascript\r\n");
+		httpresponse_response(Response, 200, TCHAR_TO_ANSI(*FileData), 0, "Content-Type: application/javascript\r\n");
 	}
 	else if (FileExtension == TEXT("jpg"))
 	{
 		TArray<uint8> FileData;
 		FFileHelper::LoadFileToArray(FileData, *FilePath);
 
-		httpresponse_response(Response, 220, (const char*)FileData.GetData(), FileData.Num(), "Content-Type: image/jpeg\r\n");
+		httpresponse_response(Response, 200, (const char*)FileData.GetData(), FileData.Num(), "Content-Type: image/jpeg\r\n");
 	}
 	else if (FileExtension == TEXT("png"))
 	{
 		TArray<uint8> FileData;
 		FFileHelper::LoadFileToArray(FileData, *FilePath);
 
-		httpresponse_response(Response, 220, (const char*)FileData.GetData(), FileData.Num(), "Content-Type: image/png\r\n");
+		httpresponse_response(Response, 200, (const char*)FileData.GetData(), FileData.Num(), "Content-Type: image/png\r\n");
 	}
 	else
 	{
@@ -126,12 +195,12 @@ void UHTTPAdmin::HTTPHandler(HttpResponse* Response)
 	}
 }
 
-void UHTTPAdmin::PrepareAdminJSON(HttpResponse* Response)
+#endif
+
+FString UHTTPAdmin::PrepareAdminJSON()
 {
 	AUTGameMode* GameMode = Cast<AUTGameMode>(GWorld->GetAuthGameMode());
-
-	httpresponse_begin(Response, 220, "Content-Type: application/json\r\n");
-
+	
 	FString JSON = TEXT("{");
 
 	if (GameMode != nullptr && GameMode->GameState != nullptr)
@@ -172,6 +241,5 @@ void UHTTPAdmin::PrepareAdminJSON(HttpResponse* Response)
 
 	JSON += TEXT("}");
 
-	httpresponse_writef(Response, TCHAR_TO_ANSI(*JSON));
-	httpresponse_end(Response);
+	return JSON;
 }

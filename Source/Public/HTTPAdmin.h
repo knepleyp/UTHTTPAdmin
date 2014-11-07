@@ -1,9 +1,16 @@
 // Copyright 1998-2014 Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#define USE_MONGOOSE 0
+
 #include "Core.h"
 #include "UnrealTournament.h"
+
+#if USE_MONGOOSE
+#include "mongoose.h"
+#else
 #include "httpd.h"
+#endif
 
 #include "HTTPAdmin.generated.h"
 
@@ -26,11 +33,15 @@ class UHTTPAdmin : public UObject, public FTickableGameObject
 		return true;
 	}
 
+#if USE_MONGOOSE
+	static int StaticMGHandler(mg_connection* conn, enum mg_event ev);	
+	int MGHandler(mg_connection* conn, enum mg_event ev);
+#else
 	static void StaticHTTPHandler(HttpResponse* Response, void* UserData);
-
 	void HTTPHandler(HttpResponse* Response);
-	
-	void PrepareAdminJSON(HttpResponse* Response);
+#endif
+
+	FString PrepareAdminJSON();
 
 	UPROPERTY(Config)
 	bool bRequireAuth;
@@ -47,5 +58,10 @@ class UHTTPAdmin : public UObject, public FTickableGameObject
 	int32 Port;
 
 private:
+
+#if USE_MONGOOSE
+	mg_server* MGServer;
+#else
 	Httpd* HTTPServer;
+#endif
 };
